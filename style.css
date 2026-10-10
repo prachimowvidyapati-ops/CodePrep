@@ -1,0 +1,28 @@
+.bottom-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.extra-btn {
+    flex: 1;
+    padding: 12px;
+    text-align: center;
+    text-decoration: none;
+    color: white;
+    background: linear-gradient(90deg, #0099ff, #5145ff);
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.extra-btn:hover {
+    color: white;
+    transform: translateY(-2px);
+}
+form {
+    width: 100%;
+    min-height: 530px;
+    padding: 35px;
+    margin: auto;
+    border-radius: 15px;
+}

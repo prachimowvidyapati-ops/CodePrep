@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Code Error Detector</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #1e1e1e; color: #ddd;
+    font-family: Arial, sans-serif;
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* ---------- Top bar ---------- */
+  #top {
+    background: #333842; padding: 10px 14px;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  #top h1 { font-size: 17px; margin: 0 auto 0 0; color: #fff; }
+  select, button {
+    padding: 8px 12px; border: none; border-radius: 6px;
+    font-size: 14px; cursor: pointer;
+  }
+  select { background: #1e1e1e; color: #fff; }
+  #checkBtn { background: #0e9f6e; color: white; font-weight: bold; }
+  #improveBtn {
+  background: #7c3aed;
+  color: white;
+  font-weight: bold;
+}
+  .grey { background: #4b5263; color: white; }
+
+  /* ---------- Editor + Bot side by side ---------- */
+  #main { flex: 1; display: flex; min-height: 0; }
+  #editorBox { flex: 1.3; display: flex; min-width: 0; background: #1e1e1e; }
+  #gutter, #code {
+    font: 14px/21px Consolas, monospace; padding: 12px 8px; margin: 0;
+  }
+  #gutter {
+    width: 44px; text-align: right; color: #7d8590;
+    background: #252526; overflow: hidden; white-space: pre;
+  }
+  #code {
+    flex: 1; background: #1e1e1e; color: #d4d4d4;
+    border: none; outline: none; resize: none;
+    white-space: pre; overflow: auto;
+  }
+
+  #botBox { flex: 1; display: flex; flex-direction: column; min-width: 0; border-left: 2px solid #333842; }
+  #botHead { background: #252526; padding: 12px; font-weight: bold; }
+  #botMsgs { flex: 1; overflow-y: auto; padding: 12px; }
+
+  /* ---------- Chat bubbles ---------- */
+  .msg { padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; font-size: 14px; line-height: 1.5; }
+  .bot   { background: #2d313a; }
+  .me    { background: #3b5bdb; text-align: right; margin-left: 30px; }
+  .error { background: #3a1f24; border-left: 4px solid #f14c4c; }
+  .warn  { background: #3a3220; border-left: 4px solid #e5b700; }
+  .ok    { background: #15382a; border-left: 4px solid #0e9f6e; }
+  small  { color: #b5bcc9; }
+
+  @media (max-width: 700px) {
+    #main { flex-direction: column; }
+    #botBox { border-left: none; border-top: 2px solid #333842; }
+  }
+</style>
+</head>
+<body>
+
+<div id="top">
+  <h1>🐞 Smart Coding Assistant</h1>
+  <select id="lang">
+    <option value="html">HTML</option>
+    <option value="css">CSS</option>
+    <option value="js">JavaScript</option>
+    <option value="python">Python</option>
+    <option value="c">C</option>
+  </select>
+  <button id="checkBtn" onclick="checkCode()">▶ Check Code</button>
+
+<button id="improveBtn" onclick="improveCode()">
+   Improve Code
+</button>
+
+<button class="grey" onclick="loadSample()">Sample</button>
+<button class="grey" onclick="clearAll()">Clear</button>
+</div>
+
+<div id="main">
+  <div id="editorBox">
+    <div id="gutter">1</div>
+    <textarea id="code" spellcheck="false" placeholder="Write your code here..."></textarea>
+  </div>
+  <div id="botBox">
+    <div id="botHead">🤖 Error Detector</div>
+    <div id="botMsgs"></div>
+  </div>
+</div>
+
+<script>
+// ---------- STEP 1: Sample codes (each has a mistake) ----------
+var samples = {
+  html: '<html>\n<body>\n  <h1>Hello</h1>\n  <p>Welcome to my page\n  <img src="a.png">\n</body>\n</html>',
+  css: 'body {\n  colour: red;\n  font-size 16px;\n}\n.box {\n  padding: 10px\n  margin: 5px;\n}',
+  js: 'function add(a, b) {\n  return a + b;\n\nconsole.log(add(2, 3));',
+  python: 'def greet(name)\n    print "Hello " + name\n\ngreet("Ali")',
+  c: '#include <stdio.h>\n\nint main() {\n    int a = 5\n    printf("%d", a);\n    return 0;\n}'
+};
+
+// CSS property names we know (used to catch spelling mistakes)
+var cssProps = ["color","background","background-color","background-image","font-size","font-family","font-weight","font-style","text-align","text-decoration","text-transform","line-height","letter-spacing","margin","margin-top","margin-bottom","margin-left","margin-right","padding","padding-top","padding-bottom","padding-left","padding-right","border","border-radius","border-color","border-width","border-style","border-top","border-bottom","width","height","max-width","min-width","max-height","min-height","display","position","top","bottom","left","right","z-index","float","clear","overflow","opacity","cursor","box-shadow","text-shadow","transition","transform","flex","flex-direction","flex-wrap","justify-content","align-items","gap","grid-template-columns","list-style","outline","visibility","content","animation"];
+
+// ---------- STEP 2: Store errors found ----------
+var errors = [];
+
+function add(line, msg, tip, type) {
+  errors.push({ line: line, msg: msg, tip: tip, type: type || "error" });
+}
+
+// ---------- STEP 3: Bracket checker (used by JS, CSS, Python, C) ----------
+function checkBrackets(code, comment) {
+  var stack = [];
+  var pairs = { ")": "(", "]": "[", "}": "{" };
+  var lines = code.split("\n");
+
+  for (var i = 0; i < lines.length; i++) {
+    var inString = "";
+    for (var j = 0; j < lines[i].length; j++) {
+      var c = lines[i][j];
+
+      if (inString) {                                   // inside quotes: ignore
+        if (c === inString && lines[i][j - 1] !== "\\") inString = "";
+        continue;
+      }
+      if (comment && lines[i].substr(j, comment.length) === comment) break;  // rest is comment
+      if (c === '"' || c === "'" || c === "`") { inString = c; continue; }
+
+      if ("([{".indexOf(c) !== -1) stack.push({ ch: c, line: i + 1 });
+      if (")]}".indexOf(c) !== -1) {
+        var top = stack.pop();
+        if (!top || top.ch !== pairs[c]) {
+          add(i + 1, "Unexpected '" + c + "'", "This closing bracket has no matching opening bracket.");
+        }
+      }
+    }
+  }
+  for (var k = 0; k < stack.length; k++) {
+    add(stack[k].line, "'" + stack[k].ch + "' is never closed", "Add the matching closing bracket.");
+  }
+}
+
+// Warn about "=" inside if/while (should be ==)
+function checkAssign(lines) {
+  for (var i = 0; i < lines.length; i++) {
+    if (/^\s*(if|elif|while)\b[^=!<>]*[^=!<>]=[^=]/.test(lines[i])) {
+      add(i + 1, "Single '=' used in a condition", "Use == to compare values. A single = assigns a value.", "warn");
+    }
+  }
+}
+
+// ---------- STEP 4: One checker per language ----------
+function checkHTML(code) {
+  var blank = function (m) { return m.replace(/[^\n]/g, " "); };
+  // remove comments and script/style content (keep line numbers same)
+  var clean = code.replace(/<!--[\s\S]*?-->/g, blank);
+  clean = clean.replace(/(<(script|style)[^>]*>)([\s\S]*?)(<\/\2>)/gi, function (m, a, b, c, d) {
+    return a + blank(c) + d;
+  });
+
+  var voids = ["br","img","input","hr","meta","link","area","base","col","embed","source","track","wbr"];
+  var stack = [];
+  var re = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/g;
+  var m;
+
+  while ((m = re.exec(clean)) !== null) {
+    var line = clean.slice(0, m.index).split("\n").length;
+    var name = m[2].toLowerCase();
+
+    if (m[1] === "") {                                   // opening tag
+      if (name === "img" && !/\balt\s*=/.test(m[3])) {
+        add(line, "<img> has no alt attribute", "Add alt=\"description\" to the image tag.", "warn");
+      }
+      if (voids.indexOf(name) === -1 && m[3].slice(-1) !== "/") {
+        stack.push({ name: name, line: line });
+      }
+    } else {                                             // closing tag
+      var found = -1;
+      for (var k = stack.length - 1; k >= 0; k--) {
+        if (stack[k].name === name) { found = k; break; }
+      }
+      if (found === -1) {
+        add(line, "</" + name + "> has no opening tag", "Remove it, or add <" + name + "> before it.");
+      } else {
+        while (stack.length - 1 > found) {
+          var open = stack.pop();
+          add(open.line, "<" + open.name + "> is never closed", "Add </" + open.name + "> before the parent tag closes.");
+        }
+        stack.pop();
+      }
+    }
+  }
+  while (stack.length > 0) {
+    var s = stack.pop();
+    add(s.line, "<" + s.name + "> is never closed", "Add </" + s.name + "> at the end.");
+  }
+}
+
+function checkCSS(code) {
+  var clean = code.replace(/\/\*[\s\S]*?\*\//g, function (m) { return m.replace(/[^\n]/g, " "); });
+  checkBrackets(clean, "");
+
+  var lines = clean.split("\n");
+  var depth = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].trim();
+    if (t === "") continue;
+
+    var inside = depth > 0 && t.indexOf("{") === -1 && t[0] !== "}";
+    if (inside) {
+      if (t.indexOf(":") === -1) {
+        add(i + 1, "Missing ':' in \"" + t + "\"", "A CSS rule looks like:  property: value;");
+      } else {
+        var prop = t.split(":")[0].trim();
+        if (cssProps.indexOf(prop) === -1 && prop[0] !== "-") {
+          add(i + 1, "Unknown property '" + prop + "'", "Check the spelling (example: color, not colour).", "warn");
+        }
+        var j = i + 1;
+        while (j < lines.length && lines[j].trim() === "") j++;
+        var next = j < lines.length ? lines[j].trim() : "";
+        if (t.slice(-1) !== ";" && next[0] !== "}") {
+          add(i + 1, "Missing ';' at the end of the line", "Every CSS declaration must end with a semicolon.");
+        }
+      }
+    }
+    depth += (t.split("{").length - 1) - (t.split("}").length - 1);
+  }
+}
+
+function checkJS(code) {
+  checkBrackets(code, "//");
+  checkAssign(code.split("\n"));
+  if (errors.length === 0) {
+    try {
+      new Function(code);          // only checks syntax, does NOT run the code
+    } catch (e) {
+      var tip = "Check commas, brackets, quotes and semicolons near the problem.";
+      if (e.message.indexOf("end of input") !== -1) tip = "Something is not closed, like a bracket or a quote.";
+      if (e.message.indexOf("identifier") !== -1) tip = "You may have forgotten an operator or comma before this word.";
+      add(0, e.message, tip);
+    }
+  }
+}
+
+function checkPython(code) {
+  checkBrackets(code, "#");
+  var lines = code.split("\n");
+  var keywords = /^\s*(def|if|elif|else|for|while|class|try|except|finally|with)\b/;
+  var prevColon = null;                                  // last line that ended with ':'
+
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].split("#")[0].replace(/\s+$/, "");
+    if (t.trim() === "") continue;
+
+    var indent = t.match(/^\s*/)[0].length;
+
+    if (keywords.test(t) && t.slice(-1) !== ":") {
+      add(i + 1, "Missing ':' at the end of the line", "Lines starting with def, if, for, while, else... must end with a colon (:).");
+    }
+    if (/^\s*print\s+[^(=]/.test(t)) {
+      add(i + 1, "print needs brackets", "In Python 3 write print(\"text\") instead of print \"text\".");
+    }
+    if (prevColon !== null && indent <= prevColon) {
+      add(i + 1, "Expected an indented block", "The line after ':' must be indented (use 4 spaces or Tab).");
+    }
+    prevColon = (t.slice(-1) === ":") ? indent : null;
+  }
+  checkAssign(lines);
+}
+
+function checkC(code) {
+  checkBrackets(code, "//");
+  var lines = code.split("\n");
+
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].split("//")[0].trim();
+    if (t === "" || t[0] === "#" || t[0] === "*" || t.indexOf("/*") === 0) continue;
+    if (t === "else" || t === "do") continue;
+
+    var last = t.slice(-1);
+    var needsSemi = ";{},:)".indexOf(last) === -1;
+    if (last === ")" && /^(printf|scanf)/.test(t)) needsSemi = true;
+    if (needsSemi) {
+      add(i + 1, "Missing ';' at the end of the statement", "Every statement in C must end with a semicolon (;).");
+    }
+  }
+  if (!/\bmain\s*\(/.test(code)) {
+    add(0, "main() function not found", "Every C program must have int main() { ... }");
+  }
+  if (/\b(printf|scanf)\b/.test(code) && !/#include\s*<stdio\.h>/.test(code)) {
+    add(0, "stdio.h is not included", "Add #include <stdio.h> at the top to use printf/scanf.", "warn");
+  }
+  checkAssign(lines);
+}
+
+// ---------- STEP 5: Show messages in the bot panel ----------
+var botMsgs = document.getElementById("botMsgs");
+var codeBox = document.getElementById("code");
+var langSel = document.getElementById("lang");
+
+function esc(t) {
+  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function addMsg(cls, html) {
+  var d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.innerHTML = html;
+  botMsgs.appendChild(d);
+  botMsgs.scrollTop = botMsgs.scrollHeight;
+}
+
+// ---------- STEP 6: Main function - runs when "Check Code" is clicked ----------
+function checkCode() {
+  var code = codeBox.value;
+  var lang = langSel.value;
+  var langName = langSel.options[langSel.selectedIndex].text;
+
+  if (code.trim() === "") {
+    addMsg("bot", "✍️ Please write some code in the editor first.");
+    return;
+  }
+
+  errors = [];
+  if (lang === "html") checkHTML(code);
+  else if (lang === "css") checkCSS(code);
+  else if (lang === "js") checkJS(code);
+  else if (lang === "python") checkPython(code);
+  else checkC(code);
+
+  errors.sort(function (a, b) { return a.line - b.line; });
+
+  addMsg("me", "Check my " + langName + " code");
+
+  if (errors.length === 0) {
+    addMsg("ok", "✅ <b>No errors detected!</b><br><small>Your " + langName + " code looks good.</small>");
+    return;
+  }
+
+  var errCount = 0, warnCount = 0;
+  for (var i = 0; i < errors.length; i++) {
+    if (errors[i].type === "error") errCount++; else warnCount++;
+  }
+  addMsg("bot", "Found <b>" + errCount + " error(s)</b> and <b>" + warnCount + " warning(s)</b>:");
+
+  for (var j = 0; j < errors.length; j++) {
+    var e = errors[j];
+    var icon = e.type === "error" ? "❌ " : "⚠️ ";
+    var where = e.line > 0 ? "<b>Line " + e.line + ":</b> " : "";
+    addMsg(e.type, icon + where + esc(e.msg) + "<br><small>💡 " + esc(e.tip) + "</small>");
+  }
+}
+// ---------- CODE IMPROVER ----------
+
+function improveCode() {
+
+  var code = codeBox.value;
+  var lang = langSel.value;
+
+  if (code.trim() === "") {
+    addMsg("bot", "✍️ Please write some code first.");
+    return;
+  }
+
+  var improved = code;
+  var changes = [];
+
+  // ---------- HTML ----------
+  if (lang === "html") {
+
+    // Add missing closing paragraph tag
+    if (/<p>[^<]*(?:\n[^<]*)*<img/i.test(improved) &&
+        !/<\/p>/i.test(improved)) {
+
+      improved = improved.replace(
+        /(<p>[\s\S]*?)(\s*<img)/i,
+        "$1</p>$2"
+      );
+
+      changes.push("Added missing </p> tag");
+    }
+
+    // Add alt attribute to img
+    improved = improved.replace(
+      /<img\s+([^>]*?)(?<!alt="[^"]*)>/gi,
+      function(match, attrs) {
+
+        if (!/\balt\s*=/i.test(attrs)) {
+          changes.push("Added alt attribute to image");
+          return '<img ' + attrs.trim() + ' alt="Image">';
+        }
+
+        return match;
+      }
+    );
+
+    // Close common missing HTML tags
+    var tags = ["html", "body", "head", "title", "div", "p", "h1", "h2", "h3"];
+
+    tags.forEach(function(tag) {
+
+      var openCount =
+        (improved.match(new RegExp("<" + tag + "\\b", "gi")) || []).length;
+
+      var closeCount =
+        (improved.match(new RegExp("</" + tag + ">", "gi")) || []).length;
+
+      if (openCount > closeCount) {
+
+        for (var i = 0; i < openCount - closeCount; i++) {
+          improved += "\n</" + tag + ">";
+          changes.push("Added missing </" + tag + "> tag");
+        }
+      }
+    });
+  }
+
+
+  // ---------- CSS ----------
+  else if (lang === "css") {
+
+    // Correct common property spelling
+    if (/\bcolour\s*:/i.test(improved)) {
+      improved = improved.replace(/\bcolour\s*:/gi, "color:");
+      changes.push("Changed 'colour' to 'color'");
+    }
+
+    // Add colon after common CSS properties
+    var properties = [
+      "font-size",
+      "color",
+      "background",
+      "margin",
+      "padding",
+      "width",
+      "height"
+    ];
+
+    properties.forEach(function(prop) {
+
+      var regex = new RegExp(
+        "(\\b" + prop + ")\\s+([^:;{}]+)(;?)",
+        "gi"
+      );
+
+      improved = improved.replace(regex, function(match, p, value, semi) {
+
+        if (match.indexOf(":") === -1) {
+          changes.push("Added ':' after " + prop);
+          return p + ": " + value.trim() + (semi || ";");
+        }
+
+        return match;
+      });
+    });
+
+    // Add missing semicolon before }
+    improved = improved.replace(
+      /([^;{}\s])\s*\n(\s*})/g,
+      function(match, value, close) {
+
+        changes.push("Added missing ';'");
+        return value + ";\n" + close;
+      }
+    );
+  }
+
+
+  // ---------- JAVASCRIPT ----------
+  else if (lang === "js") {
+
+    // Add missing closing } for functions/blocks
+    var openBraces =
+      (improved.match(/{/g) || []).length;
+
+    var closeBraces =
+      (improved.match(/}/g) || []).length;
+
+    if (openBraces > closeBraces) {
+
+      var missing = openBraces - closeBraces;
+
+      for (var i = 0; i < missing; i++) {
+        improved += "\n}";
+        changes.push("Added missing closing '}'");
+      }
+    }
+
+    // Add semicolon to common statements
+    improved = improved.replace(
+      /^(\s*(?:return|console\.log|let|const|var)\b[^;\n{}]+)$/gm,
+      function(match) {
+
+        changes.push("Added missing ';'");
+        return match + ";";
+      }
+    );
+  }
+
+
+  // ---------- PYTHON ----------
+  else if (lang === "python") {
+
+    // Add colon after Python statements
+    improved = improved.replace(
+      /^(\s*(?:def|if|elif|else|for|while|class|try|except|finally|with)\b.*?)(?<!:)\s*$/gm,
+      function(match) {
+
+        changes.push("Added missing ':'");
+        return match.trimEnd() + ":";
+      }
+    );
+
+    // Convert old print syntax to Python 3
+    improved = improved.replace(
+      /^(\s*)print\s+(.+)$/gm,
+      function(match, indent, text) {
+
+        if (!text.trim().startsWith("(")) {
+          changes.push("Updated print statement to Python 3 syntax");
+          return indent + "print(" + text + ")";
+        }
+
+        return match;
+      }
+    );
+  }
+
+
+  // ---------- C ----------
+  else if (lang === "c") {
+
+    // Add semicolon to common C statements
+    improved = improved.replace(
+      /^(\s*(?:int|float|double|char|printf|scanf|return)\b[^;{}]*)(?<![;{}])$/gm,
+      function(match) {
+
+        changes.push("Added missing ';'");
+        return match.trimEnd() + ";";
+      }
+    );
+
+    // Add stdio header if printf/scanf is used
+    if (/\b(printf|scanf)\b/.test(improved) &&
+        !/#include\s*<stdio\.h>/.test(improved)) {
+
+      improved = "#include <stdio.h>\n\n" + improved;
+      changes.push("Added missing stdio.h header");
+    }
+
+    // Add missing closing braces
+    var cOpen =
+      (improved.match(/{/g) || []).length;
+
+    var cClose =
+      (improved.match(/}/g) || []).length;
+
+    if (cOpen > cClose) {
+
+      for (var j = 0; j < cOpen - cClose; j++) {
+        improved += "\n}";
+        changes.push("Added missing closing '}'");
+      }
+    }
+  }
+
+
+  // ---------- SHOW RESULT ----------
+  if (changes.length === 0) {
+
+    addMsg(
+      "ok",
+      "✨ <b>No automatic improvements needed!</b><br>" +
+      "<small>Your code does not contain any error that the Code Improver can automatically fix.</small>"
+    );
+
+    return;
+  }
+
+  // Put improved code back into editor
+  codeBox.value = improved;
+  updateLines();
+
+  addMsg(
+    "ok",
+    "✨ <b>Code Improved!</b><br>" +
+    "<small>" + changes.length +
+    " improvement(s) were made automatically.</small>"
+  );
+
+  changes.forEach(function(change) {
+
+    addMsg(
+      "bot",
+      "🔧 " + esc(change)
+    );
+
+  });
+}
+
+// ---------- STEP 7: Line numbers, buttons, keyboard ----------
+function updateLines() {
+  var n = codeBox.value.split("\n").length;
+  var s = "";
+  for (var i = 1; i <= n; i++) s += i + "\n";
+  document.getElementById("gutter").textContent = s;
+}
+
+function loadSample() {
+  codeBox.value = samples[langSel.value];
+  updateLines();
+  addMsg("bot", "📋 Sample loaded. It has a mistake - click <b>Check Code</b> to find it!");
+}
+
+function clearAll() {
+  codeBox.value = "";
+  botMsgs.innerHTML = "";
+  updateLines();
+  addMsg("bot", "Editor cleared. Write some code and click Check Code.");
+}
+
+codeBox.oninput = updateLines;
+codeBox.onscroll = function () {
+  document.getElementById("gutter").scrollTop = codeBox.scrollTop;
+};
+codeBox.onkeydown = function (e) {
+  if (e.key === "Tab") {                    // Tab key inserts 4 spaces
+    e.preventDefault();
+    var pos = this.selectionStart;
+    this.value = this.value.slice(0, pos) + "    " + this.value.slice(this.selectionEnd);
+    this.selectionStart = this.selectionEnd = pos + 4;
+    updateLines();
+  } else if (e.ctrlKey && e.key === "Enter") {
+    checkCode();
+  }
+};
+langSel.onchange = function () {
+  addMsg("bot", "Language changed to <b>" + langSel.options[langSel.selectedIndex].text + "</b>.");
+};
+
+// ---------- START ----------
+addMsg("bot", "Hi! 👋 Write code in the editor, pick the language, and click <b>Check Code</b>. I will find the errors for you.");
+loadSample();
+</script>
+
+</body>
+</html>
