@@ -1,461 +1,322 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>CodeMate - Smart Coding Hub</title>
-
+<title>Interview Bot</title>
 <style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        font-family: Arial, sans-serif;
-    }
 
-    body {
-        min-height: 100vh;
-        background: #0b1020;
-        color: white;
-        overflow-x: hidden;
-    }
+  body {
+    font-family: 'Trebuchet MS', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
 
-    /* Background circles */
-    body::before {
-        content: "";
-        position: fixed;
-        width: 400px;
-        height: 400px;
-        background: #2563eb;
-        opacity: 0.15;
-        border-radius: 50%;
-        top: -150px;
-        left: -100px;
-        filter: blur(80px);
-        z-index: -1;
-    }
+  /* ---------- Chat window ---------- */
+  #chatApp {
+    background: white;
+    width: 100%;
+    max-width: 800px;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 500px;
+  }
 
-    body::after {
-        content: "";
-        position: fixed;
-        width: 400px;
-        height: 400px;
-        background: #7c3aed;
-        opacity: 0.15;
-        border-radius: 50%;
-        bottom: -150px;
-        right: -100px;
-        filter: blur(80px);
-        z-index: -1;
-    }
+  #chatHeader {
+    background: #4b2e83;
+    color: white;
+    padding: 16px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+  }
 
-    /* Navbar */
-    nav {
-        height: 75px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 7%;
-        border-bottom: 1px solid rgba(255,255,255,0.08);
-        background: rgba(11,16,32,0.7);
-    }
+  #chatMessages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f5f6fa;
+  }
 
-    .logo {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 21px;
-        font-weight: bold;
-    }
+  .bubble {
+    max-width: 80%;
+    padding: 10px 14px;
+    margin: 6px 0;
+    border-radius: 14px;
+    line-height: 1.4;
+    font-size: 14.5px;
+    clear: both;
+  }
 
-    .logo-icon {
-        width: 38px;
-        height: 38px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #2563eb, #7c3aed);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-    }
+  .bot {
+    background: #e4e6eb;
+    color: #222;
+    float: left;
+    border-bottom-left-radius: 3px;
+  }
 
-    .nav-text {
-        color: #9ca3af;
-        font-size: 14px;
-    }
+  .user {
+    background: #764ba2;
+    color: white;
+    float: right;
+    border-bottom-right-radius: 3px;
+  }
 
-    /* Hero */
-    .hero {
-        text-align: center;
-        padding: 80px 20px 50px;
-        max-width: 1000px;
-        margin: auto;
-    }
+  /* ---------- Input area ---------- */
+  #inputRow {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #ddd;
+    background: white;
+  }
 
-    .badge {
-        display: inline-block;
-        padding: 8px 16px;
-        border-radius: 30px;
-        background: rgba(37,99,235,0.12);
-        border: 1px solid rgba(96,165,250,0.25);
-        color: #93c5fd;
-        font-size: 13px;
-        margin-bottom: 22px;
-    }
+  #userInput {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 14.5px;
+    outline: none;
+  }
 
-    .hero h1 {
-        font-size: clamp(40px, 7vw, 72px);
-        line-height: 1.05;
-        margin-bottom: 20px;
-        letter-spacing: -2px;
-    }
+  #sendBtn {
+    margin-left: 8px;
+    background: #764ba2;
+    color: white;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  #sendBtn:hover {
+    background: #5e3a85;
+  }
 
-    .gradient-text {
-        background: linear-gradient(90deg, #60a5fa, #a78bfa);
-        -webkit-background-clip: text;
-        color: transparent;
-    }
-
-    .hero p {
-        max-width: 650px;
-        margin: auto;
-        color: #aeb6c7;
-        font-size: 17px;
-        line-height: 1.7;
-    }
-
-    /* Main Cards */
-    .options {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 25px;
-        max-width: 950px;
-        margin: 25px auto 70px;
-        padding: 0 20px;
-    }
-
-    .card {
-        position: relative;
-        padding: 32px;
-        min-height: 280px;
-        border-radius: 22px;
-        background: rgba(255,255,255,0.055);
-        border: 1px solid rgba(255,255,255,0.1);
-        transition: 0.3s ease;
-        overflow: hidden;
-    }
-
-    .card:hover {
-        transform: translateY(-8px);
-        border-color: rgba(96,165,250,0.5);
-        background: rgba(255,255,255,0.08);
-    }
-
-    .card::before {
-        content: "";
-        position: absolute;
-        width: 150px;
-        height: 150px;
-        border-radius: 50%;
-        right: -60px;
-        top: -60px;
-        opacity: 0.12;
-    }
-
-    .coding::before {
-        background: #3b82f6;
-    }
-
-    .interview::before {
-        background: #a855f7;
-    }
-
-    .icon {
-        width: 58px;
-        height: 58px;
-        border-radius: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 27px;
-        margin-bottom: 20px;
-    }
-
-    .coding .icon {
-        background: rgba(37,99,235,0.18);
-    }
-
-    .interview .icon {
-        background: rgba(168,85,247,0.18);
-    }
-
-    .card h2 {
-        font-size: 25px;
-        margin-bottom: 10px;
-    }
-
-    .card p {
-        color: #9ca3af;
-        line-height: 1.6;
-        font-size: 14px;
-        margin-bottom: 25px;
-    }
-
-    .start-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 19px;
-        border-radius: 10px;
-        color: white;
-        text-decoration: none;
-        font-weight: bold;
-        font-size: 14px;
-        transition: 0.2s;
-    }
-
-    .coding-btn {
-        background: #2563eb;
-    }
-
-    .interview-btn {
-        background: #7c3aed;
-    }
-
-    .start-btn:hover {
-        opacity: 0.85;
-        transform: translateX(3px);
-    }
-
-    /* Features */
-    .features {
-        max-width: 1000px;
-        margin: 0 auto 60px;
-        padding: 0 20px;
-    }
-
-    .features-title {
-        text-align: center;
-        margin-bottom: 25px;
-    }
-
-    .features-title h2 {
-        font-size: 25px;
-        margin-bottom: 8px;
-    }
-
-    .features-title p {
-        color: #8992a5;
-        font-size: 14px;
-    }
-
-    .feature-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 15px;
-    }
-
-    .feature {
-        padding: 20px;
-        border-radius: 14px;
-        background: rgba(255,255,255,0.035);
-        border: 1px solid rgba(255,255,255,0.07);
-    }
-
-    .feature span {
-        font-size: 22px;
-    }
-
-    .feature h3 {
-        font-size: 15px;
-        margin: 12px 0 7px;
-    }
-
-    .feature p {
-        color: #8992a5;
-        font-size: 13px;
-        line-height: 1.5;
-    }
-
-    /* Footer */
-    footer {
-        text-align: center;
-        padding: 25px;
-        color: #687084;
-        font-size: 12px;
-        border-top: 1px solid rgba(255,255,255,0.06);
-    }
-
-    /* Mobile */
-    @media (max-width: 700px) {
-
-        nav {
-            padding: 0 5%;
-        }
-
-        .nav-text {
-            display: none;
-        }
-
-        .hero {
-            padding-top: 55px;
-        }
-
-        .hero p {
-            font-size: 15px;
-        }
-
-        .options {
-            grid-template-columns: 1fr;
-        }
-
-        .feature-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .card {
-            min-height: auto;
-        }
-    }
 </style>
 </head>
-
 <body>
 
-<!-- NAVBAR -->
-<nav>
+<div id="chatApp">
+  <div id="chatHeader">💬 Interview Bot</div>
+  <div id="chatMessages"></div>
+  <div id="inputRow">
+    <input type="text" id="userInput" placeholder="Type your answer..." onkeypress="handleEnter(event)">
+    <button id="sendBtn" onclick="handleSend()">➤</button>
+  </div>
+</div>
 
-    <div class="logo">
-        <div class="logo-icon">&lt;/&gt;</div>
-        CodePrep
-    </div>
+<script>
+// ---------- STEP 1: Questions for each language ----------
+// Each question has: the question text, a list of acceptable keywords, and an explanation
+var questions = {
 
-    <div class="nav-text">
-        Smart Coding • Practice • Interview
-    </div>
+  html: [
+    { question: "What does HTML stand for?",
+      keywords: ["hypertext markup language", "hyper text markup language"],
+      explain: "HTML means HyperText Markup Language." },
+    { question: "Which tag is used to create a hyperlink?",
+      keywords: ["<a>", "a tag", "anchor"],
+      explain: "The <a> tag (anchor tag) is used to create a hyperlink." },
+    { question: "Which tag is used to insert an image?",
+      keywords: ["<img>", "img"],
+      explain: "The <img> tag is used to display an image." },
+    { question: "Which attribute gives alternate text for an image?",
+      keywords: ["alt"],
+      explain: "The 'alt' attribute provides alternate text for an image." },
+    { question: "Which tag defines the largest heading?",
+      keywords: ["<h1>", "h1"],
+      explain: "<h1> is the largest heading tag; <h6> is the smallest." }
+  ],
 
-</nav>
+  css: [
+    { question: "What does CSS stand for?",
+      keywords: ["cascading style sheets"],
+      explain: "CSS means Cascading Style Sheets." },
+    { question: "Which property is used to change text color?",
+      keywords: ["color"],
+      explain: "The 'color' property sets the text color." },
+    { question: "Which symbol is used to select a class in CSS?",
+      keywords: [".", "dot", "period"],
+      explain: "A dot (.) is used to select a class, for example .box" },
+    { question: "Which property adds space inside an element's border?",
+      keywords: ["padding"],
+      explain: "'padding' adds space inside the border; 'margin' adds space outside it." },
+    { question: "Which property makes text bold?",
+      keywords: ["font-weight", "fontweight"],
+      explain: "'font-weight: bold' makes text thicker." }
+  ],
 
+  javascript: [
+    { question: "Which keyword declares a variable that can be reassigned?",
+      keywords: ["let"],
+      explain: "'let' declares a variable that can be changed later." },
+    { question: "Which operator checks strict equality (value and type)?",
+      keywords: ["===", "triple equals"],
+      explain: "'===' checks both the value and the type." },
+    { question: "Which symbol starts a single-line comment?",
+      keywords: ["//"],
+      explain: "'//' is used for single-line comments in JavaScript." },
+    { question: "Which array method adds an item to the end of the array?",
+      keywords: ["push"],
+      explain: "push() adds a new item to the end of an array." },
+    { question: "Which function selects an element by its id?",
+      keywords: ["getelementbyid"],
+      explain: "document.getElementById() returns the element with that id." }
+  ],
 
-<!-- HERO SECTION -->
-<section class="hero">
-    <h1>
-        Learn. Code. <span class="gradient-text">Improve.</span>
-    </h1>
+  python: [
+    { question: "Which symbol is used for comments in Python?",
+      keywords: ["#"],
+      explain: "'#' starts a comment in Python." },
+    { question: "Which keyword is used to define a function in Python?",
+      keywords: ["def"],
+      explain: "Functions are defined using the 'def' keyword." },
+    { question: "Which brackets are used to create a list in Python?",
+      keywords: ["[]", "square brackets", "[", "]"],
+      explain: "Square brackets [] are used to create a list." },
+    { question: "Which function returns the number of items in a list?",
+      keywords: ["len"],
+      explain: "len() returns how many items are in a list or string." },
+    { question: "Which keyword is used to loop over items in a list?",
+      keywords: ["for"],
+      explain: "'for' is used to loop over items in a sequence." }
+  ],
 
-    <p>
-        A simple platform designed to help students
-        practice coding, detect common errors and
-        prepare for technical interviews.
-    </p>
+  c: [
+    { question: "Which function is the entry point of every C program?",
+      keywords: ["main"],
+      explain: "Every C program begins execution from main()." },
+    { question: "Which header file is needed to use printf()?",
+      keywords: ["stdio.h", "stdio"],
+      explain: "printf() and scanf() are declared in stdio.h" },
+    { question: "Which symbol is used to end a statement in C?",
+      keywords: [";", "semicolon"],
+      explain: "Every statement in C ends with a semicolon (;)." },
+    { question: "Which data type is used to store a single character?",
+      keywords: ["char"],
+      explain: "'char' is used to store a single character in C." },
+    { question: "Which operator is used to get the address of a variable?",
+      keywords: ["&"],
+      explain: "The '&' operator returns the memory address of a variable." }
+  ]
 
-</section>
+};
 
+// ---------- STEP 2: Variables to track the conversation ----------
+var stage = "chooseLang";  // chooseLang -> quiz -> finished
+var currentLang = "";
+var currentIndex = 0;
+var score = 0;
 
-<!-- TWO MAIN OPTIONS -->
-<section class="options">
+// ---------- STEP 3: Add a chat bubble to the screen ----------
+function addMessage(sender, text) {
+  var messages = document.getElementById("chatMessages");
+  var bubble = document.createElement("div");
+  bubble.className = "bubble " + sender;
+  bubble.innerHTML = text;
+  messages.appendChild(bubble);
+  messages.scrollTop = messages.scrollHeight; // auto-scroll to latest message
+}
 
-    <!-- CODE EDITOR -->
-    <div class="card coding">
+// ---------- STEP 4: Greet the user when page loads ----------
+function greet() {
+  addMessage("bot", "Hi! I'm your interview bot 🤖");
+  addMessage("bot", "Which language do you want to be interviewed in? (html / css / javascript / python / c)");
+}
 
-        <div class="icon">
-            💻
-        </div>
+// ---------- STEP 5: Handle Enter key and Send button ----------
+function handleEnter(event) {
+  if (event.key === "Enter") {
+    handleSend();
+  }
+}
 
-        <h2>Smart Coding</h2>
+function handleSend() {
+  var input = document.getElementById("userInput");
+  var text = input.value.trim();
+  if (text === "") return;
 
-        <p>
-            Write your code, check common errors and
-            get helpful suggestions to improve your
-            coding skills.
-        </p>
+  addMessage("user", text);
+  input.value = "";
 
-        <a href="pro.html" class="start-btn coding-btn">
-            Start Smart Coding →
-        </a>
+  if (stage === "chooseLang") {
+    chooseLanguage(text);
+  } else if (stage === "quiz") {
+    checkAnswer(text);
+  } else if (stage === "finished") {
+    if (text.toLowerCase() === "restart") {
+      stage = "chooseLang";
+      addMessage("bot", "Great! Which language this time? (html / css / javascript / python / c)");
+    } else {
+      addMessage("bot", "Type 'restart' to try another language.");
+    }
+  }
+}
 
-    </div>
+// ---------- STEP 6: Handle the language chosen by user ----------
+function chooseLanguage(text) {
+  var lang = text.toLowerCase();
 
+  if (questions[lang]) {
+    currentLang = lang;
+    currentIndex = 0;
+    score = 0;
+    stage = "quiz";
+    addMessage("bot", "Great! Let's start your " + lang + " interview.");
+    askQuestion();
+  } else {
+    addMessage("bot", "Please type one of: html, css, javascript, python, c");
+  }
+}
 
-    <!-- INTERVIEW -->
-    <div class="card interview">
+// ---------- STEP 7: Bot asks the current question ----------
+function askQuestion() {
+  var q = questions[currentLang][currentIndex];
+  var total = questions[currentLang].length;
+  addMessage("bot", "Question " + (currentIndex + 1) + " of " + total + ": " + q.question);
+}
 
-        <div class="icon">
-            🤖
-        </div>
+// ---------- STEP 8: Check the user's typed answer ----------
+function checkAnswer(text) {
+  var q = questions[currentLang][currentIndex];
+  var userAnswer = text.toLowerCase();
 
-        <h2>AI Interview</h2>
+  var isCorrect = false;
+  for (var i = 0; i < q.keywords.length; i++) {
+    if (userAnswer.indexOf(q.keywords[i]) !== -1) {
+      isCorrect = true;
+    }
+  }
 
-        <p>
-            Practice technical interview questions
-            with our chatbot and improve your confidence
-            before facing a real interview.
-        </p>
+  if (isCorrect) {
+    score = score + 1;
+    addMessage("bot", "✅ Correct! " + q.explain);
+  } else {
+    addMessage("bot", "❌ Not quite. " + q.explain);
+  }
 
-        <a href="index.html" class="start-btn interview-btn">
-            Start Interview →
-        </a>
+  currentIndex = currentIndex + 1;
 
-    </div>
+  if (currentIndex < questions[currentLang].length) {
+    askQuestion();
+  } else {
+    stage = "finished";
+    addMessage("bot", "🎉 Interview done! Your score: " + score + " / " + questions[currentLang].length);
+    addMessage("bot", "Type 'restart' to try another language.");
+  }
+}
 
-</section>
-
-
-<!-- FEATURES -->
-<section class="features">
-
-    <div class="features-title">
-
-        <h2>Everything You Need to Practice</h2>
-
-        <p>
-            Simple tools made for students and beginners.
-        </p>
-
-    </div>
-
-
-    <div class="feature-grid">
-
-        <div class="feature">
-            <span>🔍</span>
-            <h3>Find Coding Errors</h3>
-            <p>
-                Detect common syntax and coding mistakes
-                with useful suggestions.
-            </p>
-        </div>
-
-
-        <div class="feature">
-            <span>💡</span>
-            <h3>Learn From Mistakes</h3>
-            <p>
-                Understand your errors instead of simply
-                getting an error message.
-            </p>
-        </div>
-
-
-        <div class="feature">
-            <span>🎯</span>
-            <h3>Practice Interviews</h3>
-            <p>
-                Prepare yourself for technical questions
-                through chatbot-based practice.
-            </p>
-        </div>
-
-    </div>
-
-</section>
-
-
-<!-- FOOTER -->
-<footer>
-    © 2026 CodeMate • Smart Learning Project
-</footer>
+// ---------- START ----------
+greet();
+</script>
 
 </body>
 </html>
